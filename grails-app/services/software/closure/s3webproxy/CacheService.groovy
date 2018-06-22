@@ -34,24 +34,32 @@ class CacheService {
 
     def amazonWebService
 
-    def sendObject( String uri, HttpServletResponse response )
+    def sendObject( String uri, HttpServletResponse response, boolean sendContent = true )
             throws IOException, AmazonServiceException, AmazonClientException
     {
         String bucket = S3WebProxyTools.bucketName
         if( amazonWebService.s3.doesObjectExist( bucket, uri ) ) {
             def metadata = amazonWebService.s3.getObjectMetadata( bucket, uri )
-            response.contentType = metadata.contentType
-            response.contentLength = metadata.contentLength
-            File file = getLocalFile( uri )
-            if( isCacheObjectValid( uri, metadata ) ) {
-                sendStream( file.newInputStream(), response.outputStream )
-                touch( uri )
+            response.addHeader( "Content-Type", metadata.contentType )
+            response.addHeader( "Content-Length", Long.toString( metadata.contentLength ) )
+            if( metadata.lastModified ) {
+                response.addDateHeader( "Last-Modified", metadata.lastModified.time )
+            }
+            if( sendContent ) {
+                File file = getLocalFile( uri )
+                if( isCacheObjectValid( uri, metadata ) ) {
+                    sendStream( file.newInputStream(), response.outputStream )
+                    touch( uri )
+                }
+                else {
+                    def object = amazonWebService.s3.getObject( bucket, uri )
+                    addCacheElement( uri, metadata.contentLength, metadata.getETag() )
+                    file.parentFile.mkdirs()
+                    sendStream( object.objectContent, response.outputStream, file.newOutputStream() )
+                }
             }
             else {
-                def object = amazonWebService.s3.getObject( bucket, uri )
-                addCacheElement( uri, metadata.contentLength, metadata.getETag() )
-                file.parentFile.mkdirs()
-                sendStream( object.objectContent, response.outputStream, file.newOutputStream() )
+                response.sendError( 200, "OK" ) // this is a HEAD operation, just send 200 OK
             }
         }
         else {

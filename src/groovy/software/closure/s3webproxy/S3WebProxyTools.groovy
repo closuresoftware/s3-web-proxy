@@ -88,6 +88,10 @@ class S3WebProxyTools {
         getConfigValue( "auth.admin.password", "S3PROXY_ADMIN_PASSWORD", "admin" )
     }
 
+    static Boolean allowPublicGet() {
+        getConfigValue( "auth.allowPublicGet", "S3PROXY_ALLOW_PUBLIC_GET", "false" ) == "true"
+    }
+
     static String getConfigValue( String configPath, String envName, String defaultValue = null ) {
         def path = configPath.split( "[.]" )
         def value = Holders.config

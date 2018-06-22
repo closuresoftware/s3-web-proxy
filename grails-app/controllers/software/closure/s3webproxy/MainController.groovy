@@ -19,7 +19,7 @@ package software.closure.s3webproxy
 
 class MainController {
 
-    static allowedMethods = [index: 'GET', putFile: [ "PUT", "POST" ] ]
+    static allowedMethods = [index: [ 'GET', 'HEAD' ], putFile: [ "PUT", "POST" ] ]
 
     def authenticationService
     def cacheService
@@ -37,7 +37,7 @@ class MainController {
                 }
                 else {
                     uri = S3WebProxyTools.getS3URIFromRequest( request )
-                    cacheService.sendObject( uri, response )
+                    cacheService.sendObject( uri, response, request.method == 'GET' )
                 }
             }
         }
@@ -53,7 +53,12 @@ class MainController {
     private authorize( Closure closure ) {
         try {
             log.info "[${request.method}] ${request.forwardURI} : ${request.contentLength > 0 ? request.contentLength : '<empty>'}"
-            closure.call( authenticationService.authenticate().username )
+            if( (request.method ==  'GET' || request.method == 'HEAD') && S3WebProxyTools.allowPublicGet() ) {
+                closure.call( null )
+            }
+            else {
+                closure.call( authenticationService.authenticate().username )
+            }
         }
         catch( InvalidCredentialsException ignored ) {
             response.addHeader( "WWW-Authenticate", "Basic realm=\"${S3WebProxyTools.authenticationRealm}\" charset=\"UTF-8\"" )
